@@ -8,7 +8,7 @@ import torch.optim as optim
 T=5
 
 class RNNCell(nn.Module):
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, input_size, hidden_size): # 初期化
         # self.b = 0
         self.linear_x = nn.Linear(input_size, hidden_size, bias=False)
         self.linear_h = nn.Linear(hidden_size, hidden_size, bias=False)
