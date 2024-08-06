@@ -13,7 +13,7 @@ class RNNCell(nn.Module):
         self.linear_x = nn.Linear(input_size, hidden_size, bias=False)
         self.linear_h = nn.Linear(hidden_size, hidden_size, bias=False)
 
-    def forward(self, x, h):
+    def forward(self, x, h): #順伝播
         x = self.linear_x(x)
         h = self.linear_h(h)
         h_next = torch.tanh(x+h)
