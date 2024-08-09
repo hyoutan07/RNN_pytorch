@@ -53,7 +53,7 @@ class TimeEmbedding(nn.Module):
 class TimeAffine(nn.Module):
     def __init__(self, hidden_size, vocab_size, T):
         super(TimeAffine, self).__init__()
-        self.affine = nn.Linear(hidden_size, vocab_size)
+        self.affine = nn.Linear(hidden_size, vocab_size, bias=False)
         self.T = T
 
     def forward(self, h_results):
@@ -62,30 +62,29 @@ class TimeAffine(nn.Module):
             output[:, t, :] = self.affine(h_results[:, t, :])
         return output
 
-# RNNCell definition
-class RNNCell(nn.Module):
+# LSTMCell definition
+class LSTMCell(nn.Module):
     def __init__(self, input_size, hidden_size): # 初期化
-        super(RNNCell, self).__init__()
+        super(LSTMCell, self).__init__()
         self.linear_x = nn.Linear(input_size, hidden_size, bias=False)
         self.linear_h = nn.Linear(hidden_size, hidden_size, bias=False)
-        self.bias = nn.Parameter(torch.randn(hidden_size))
 
     def forward(self, x, h): # 順伝播
         # print(x.shape)
         x = self.linear_x(x)
         h = self.linear_h(h)
-        h_next = torch.tanh(x + h + self.bias)
+        h_next = torch.tanh(x + h)
         return h_next
 
-# TimeRNN definition
-class TimeRNN(nn.Module):
+# TimeLSTM definition
+class TimeLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, batch_size, T, stateful=False):
-        super(TimeRNN, self).__init__()
+        super(TimeLSTM, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.batch_size = batch_size
         self.T = T
-        self.layer = RNNCell(input_size, hidden_size)
+        self.layer = LSTMCell(input_size, hidden_size)
         self.stateful = stateful
     
     def forward(self, X, hs=None):
@@ -95,15 +94,20 @@ class TimeRNN(nn.Module):
             h = hs
 
         h_results = torch.empty((self.batch_size, self.T, self.hidden_size))
+        print("X size: ", X.size(0))
         for t in range(self.T):
+            # print(h)
+            # print(t)
+            # print(h.shape)
+            # print(h_results)
             h_results[:, t, :] = h
             h = self.layer(X[:, t, :], h)
 
         return h_results
 
-class simpleRNN(nn.Module):
+class simpleLSTM(nn.Module):
     def __init__(self, vocab_size, hidden_size, wordvec_size, batch_size, T):
-        super(simpleRNN, self).__init__()
+        super(simpleLSTM, self).__init__()
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
         self.wordvec_size = wordvec_size
@@ -111,7 +115,7 @@ class simpleRNN(nn.Module):
         self.T = T
         
         self.time_embedding = TimeEmbedding(self.vocab_size, self.wordvec_size, self.T)
-        self.time_rnn = TimeRNN(self.wordvec_size, self.hidden_size, self.batch_size, self.T)
+        self.time_rnn = TimeLSTM(self.wordvec_size, self.hidden_size, self.batch_size, self.T)
         self.time_affine = TimeAffine(self.hidden_size, self.vocab_size, self.T)
         
     def forward(self, idx, hs=None):
@@ -153,7 +157,7 @@ dataset = PTBDataset(xs, ts, T)
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
 # Create model
-model = simpleRNN(vocab_size, hidden_size, wordvec_size, batch_size, T)
+model = simpleLSTM(vocab_size, hidden_size, wordvec_size, batch_size, T)
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 losses = []
 
