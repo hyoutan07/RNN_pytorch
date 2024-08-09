@@ -118,7 +118,7 @@ class simpleRNN(nn.Module):
         X = self.time_embedding(idx)
         H = self.time_rnn(X, hs)
         V = self.time_affine(H)
-        output = F.softmax(V)
+        output = F.softmax(V, dim=-1)
         return output
 
 # Dataset definition

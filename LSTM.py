@@ -34,7 +34,6 @@ learning_rate = 0.01
 epochs = 100
 
 #Embedding
-
 class Embedding(nn.Module):
     def __init__(self, vocab_size, wordvec_size):
         super(Embedding, self).__init__()
@@ -56,7 +55,7 @@ class TimeEmbedding(nn.Module):
     
     def forward(self, idx):
         batch_size, sequence_length = idx.shape
-        out = torch.empty(batch_size, self.T, self.wordvec_size)
+        out = torch.empty(batch_size, self.T, self.wordvec_size, device=idx.device)
 
         for t in range(self.T):
             out[:, t, :] = self.embedding(idx[:, t])
@@ -70,7 +69,7 @@ class TimeAffine(nn.Module):
         self.T = T
 
     def forward(self, h_results):
-        output = torch.empty_like(h_results)
+        output = torch.empty_like(h_results, device=h_results.device)
         for t in range(self.T):
             output[:, t, :] = self.affine(h_results[:, t, :])
         return output
@@ -93,13 +92,13 @@ class LSTMCell(nn.Module):
         i = A[:, 2*hidden_size: 3*hidden_size]
         o = A[:, 3*hidden_size:]
 
-        f = F.sigmoid(f)
-        g = F.tanh(g)
-        i = F.sigmoid(i)
-        o = F.sigmoid(o)
+        f = torch.sigmoid(f)
+        g = torch.tanh(g)
+        i = torch.sigmoid(i)
+        o = torch.sigmoid(o)
         
         c_next = f * c + g * i
-        h_next = o * F.tanh(c)
+        h_next = o * torch.tanh(c)
         return h_next, c_next
 
 # TimeLSTM definition
@@ -115,13 +114,13 @@ class TimeLSTM(nn.Module):
     
     def forward(self, X, hs=None,cs=None):
         if not self.stateful or hs is None or cs is None:
-            h = torch.zeros((self.batch_size, self.hidden_size))
-            c = torch.zeros((self.batch_size, self.hidden_size))
+            h = torch.zeros((self.batch_size, self.hidden_size), device=X.device)
+            c = torch.zeros((self.batch_size, self.hidden_size), device=X.device)
         else:
             h = hs
             c = cs
 
-        h_results = torch.empty((self.batch_size, self.T, self.hidden_size))
+        h_results = torch.empty((self.batch_size, self.T, self.hidden_size), device=X.device)
         for t in range(self.T):
             h_results[:, t, :] = h
             h, c = self.layer(X[:, t, :], h, c)
@@ -159,7 +158,7 @@ class simpleLSTM(nn.Module):
         if self.dropout:
             H = self.dropout_3(H)
         V = self.time_affine(H)
-        output = F.softmax(V)
+        output = F.softmax(V, dim=-1)
         return output
 
 # Dataset definition
@@ -200,22 +199,20 @@ losses = []
 
 # Training loop
 for epoch in range(epochs):
+    model.train()  # 訓練モードに切り替え
     loss_sum = 0.0
     cnt = 0
 
     for x, label in dataloader:
         x = x.to(DEVICE)
         label = label.to(DEVICE)
-        # テンソルに変換
-        ts_tensor = torch.tensor(label, dtype=torch.long)
+
         # ワンホットエンコーディング
-        ts_one_hot = F.one_hot(ts_tensor, num_classes=vocab_size)
-        # float型に変換
-        ts_one_hot_float = ts_one_hot.float()
+        ts_one_hot = F.one_hot(label, num_classes=vocab_size).float().to(DEVICE)
 
         optimizer.zero_grad()
         output = model(x)
-        loss = F.mse_loss(output, ts_one_hot_float)
+        loss = F.mse_loss(output, ts_one_hot)
         loss.backward()
         optimizer.step()
 
